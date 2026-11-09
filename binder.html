@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Binder Gallery — My Binder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a toolbar over a binder viewer that shows one page or an open two-page spread sized to fit the screen */
+:root {
+  --bg: #F4F5F7;
+  --surface: #FFFFFF;
+  --ink: #16181D;
+  --muted: #50566A;
+  --line: #E2E4E9;
+  --line-strong: #B3B9C6;
+  --chip: #EEF0F3;
+  --accent: #2F5BEA;
+  --accent-soft: #EAF0FE;
+  --on-accent: #FFFFFF;
+  --sleeve: #E6E8EE;
+  --danger: #B42318;
+  --display: "Space Grotesk", system-ui, sans-serif;
+  --body: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1115;
+    --surface: #181B22;
+    --ink: #ECEEF2;
+    --muted: #A3A9B8;
+    --line: #2A2F3A;
+    --line-strong: #4A5162;
+    --chip: #222632;
+    --accent: #7C9BFF;
+    --accent-soft: #1E2742;
+    --on-accent: #0F1115;
+    --sleeve: #23272F;
+    --danger: #FF8A80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+a { color: var(--accent); }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+header.top { background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 20px/1 var(--display); letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+.logo .frame { fill: none; stroke: var(--ink); stroke-width: 2; }
+.logo .dot { fill: var(--ink); }
+.logo .dot.on { fill: var(--accent); }
+nav.main { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; font-weight: 500; }
+nav.main a { color: var(--ink); text-decoration: none; }
+nav.main a[aria-current="page"] { color: var(--accent); }
+nav.main a.login { background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 8px; min-height: 44px; display: inline-flex; align-items: center; }
+
+main .wrap { padding-block: 24px 48px; }
+h1 { font: 700 32px/1.15 var(--display); letter-spacing: -0.02em; margin: 0 0 8px; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+
+.btn { min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.icon { padding: 0; width: 44px; }
+
+.seg { display: inline-flex; background: var(--chip); border-radius: 10px; padding: 4px; gap: 4px; }
+.seg button { min-height: 40px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-weight: 600; font-size: 14px; cursor: pointer; padding: 4px 12px; line-height: 1.2; }
+.seg button small { display: block; font-weight: 400; font-size: 12px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.seg.full { display: flex; }
+.seg.full button { flex: 1 1 0; min-height: 52px; }
+
+/* Create screen */
+.create { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; max-width: 560px; display: flex; flex-direction: column; gap: 20px; }
+.field label, .field .label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+.field .help { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.text { width: 100%; min-height: 46px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+.stepper { display: inline-flex; align-items: center; gap: 8px; }
+.stepper input { width: 80px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Binder view */
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.bar h1 { margin: 0; }
+.meta { color: var(--muted); font-size: 14px; margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 18px 0 14px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.pager { display: flex; align-items: center; gap: 8px; }
+.pager .where { min-width: 116px; text-align: center; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.settings { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
+.settings h2 { font: 600 18px/1.3 var(--display); margin: 0; }
+.notice { font-size: 14px; margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+
+.viewer { display: flex; justify-content: center; gap: 16px; --pw: 360px; }
+.bpage { width: var(--pw); max-width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.viewer.spread .bpage:first-child { border-radius: 12px 4px 4px 12px; }
+.viewer.spread .bpage:last-child { border-radius: 4px 12px 12px 4px; }
+.phead { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 28px; font-size: 13px; }
+.phead strong { font-weight: 600; }
+.phead .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.phead .tools { display: flex; align-items: center; gap: 6px; }
+.linkbtn { background: none; border: 0; padding: 4px 6px; min-height: 28px; color: var(--muted); font-size: 13px; cursor: pointer; text-decoration: underline; }
+.linkbtn.danger { color: var(--danger); }
+.pgrid { display: grid; gap: 5px; background: var(--sleeve); padding: 6px; border-radius: 6px; }
+.slot { aspect-ratio: 65 / 90; border: 1px dashed var(--line-strong); border-radius: 4px; background: var(--surface); display: grid; place-items: center; cursor: pointer; padding: 0; overflow: hidden; color: var(--muted); font-size: 20px; line-height: 1; position: relative; }
+.slot:hover { border-color: var(--accent); }
+.slot.filled { border: 0; background: transparent; }
+.slot img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 3px; }
+.slot .noimg { width: 100%; height: 100%; display: grid; place-items: center; padding: 3px; background: var(--chip); font-size: 9px; overflow-wrap: anywhere; text-align: center; line-height: 1.2; color: var(--ink); }
+.foot { margin: 20px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
+
+/* Card picker dialog */
+dialog { border: 0; border-radius: 16px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: var(--surface); color: var(--ink); box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+dialog::backdrop { background: rgba(10,12,16,0.5); }
+.dlg { display: flex; flex-direction: column; max-height: calc(100dvh - 24px); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 16px 8px; }
+.dlg-head h2 { font: 600 18px/1.3 var(--display); margin: 0; }
+.dlg-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.current { display: flex; align-items: center; gap: 12px; background: var(--accent-soft); border-radius: 10px; padding: 8px; }
+.current .txt { flex: 1; min-width: 0; font-size: 14px; }
+.thumb { width: 40px; aspect-ratio: 63 / 88; border-radius: 3px; background: var(--chip); flex: none; overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb.noimg { display: grid; place-items: center; text-align: center; font-size: 9px; line-height: 1.2; color: var(--muted); border: 1px dashed var(--line-strong); padding: 2px; }
+.current .thumb { width: 52px; }
+.results { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--line); border-radius: 10px; overflow-y: auto; min-height: 120px; max-height: 46dvh; }
+.opt { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; cursor: pointer; min-height: 44px; }
+.opt[aria-selected="true"], .opt:hover { background: var(--accent-soft); }
+.opt .txt { min-width: 0; font-size: 14px; }
+.opt .txt span, .current .txt span { color: var(--muted); }
+.list-msg { padding: 10px 12px; font-size: 14px; color: var(--muted); }
+.check { display: flex; align-items: center; gap: 10px; font-size: 14px; min-height: 44px; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.dlg-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.status { font-size: 14px; color: var(--muted); margin: 0; min-height: 21px; }
+
+/* Print: one binder page per A4 sheet, Binder Gallery name and logo top right of every sheet */
+#printArea { display: none; }
+@page { size: A4 portrait; margin: 10mm; }
+@media print {
+  body { background: #FFFFFF; color: #16181D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body > *:not(#printArea) { display: none !important; }
+  #printArea { display: block; }
+  .ppage { height: 270mm; display: flex; flex-direction: column; gap: 6mm; break-after: page; page-break-after: always; overflow: hidden; }
+  .ppage:last-child { break-after: auto; page-break-after: auto; }
+  .pphead { display: flex; justify-content: space-between; align-items: flex-start; height: 12mm; font-family: var(--body); }
+  .pphead .left strong { display: block; font: 600 13pt/1.2 var(--display); }
+  .pphead .left span { font-size: 9.5pt; color: #50566A; }
+  .pphead .mark { display: flex; align-items: center; gap: 2.5mm; font: 700 13pt/1 var(--display); color: #16181D; }
+  .pphead .mark .frame { fill: none; stroke: #16181D; stroke-width: 2; }
+  .pphead .mark .dot { fill: #16181D; }
+  .pphead .mark .dot.on { fill: #2F5BEA; }
+  .ppgrid { display: grid; gap: 2.5mm; width: 176mm; margin: 0 auto; }
+  .ppslot { aspect-ratio: 65 / 90; border: 0.3mm dashed #B3B9C6; border-radius: 1.5mm; overflow: hidden; display: block; }
+  .ppslot.filled { border: 0; }
+  .ppslot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ppslot .noimg { width: 100%; height: 100%; display: grid; place-items: center; text-align: center; font-size: 8pt; background: #EEF0F3; padding: 2mm; }
+  .ppfoot { margin-top: auto; text-align: center; font-size: 8pt; color: #50566A; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="logo" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+        <rect class="frame" x="1" y="1" width="26" height="26" rx="5"></rect>
+        <rect class="dot" x="5" y="5" width="5" height="5" rx="1"></rect><rect class="dot" x="11.5" y="5" width="5" height="5" rx="1"></rect><rect class="dot" x="18" y="5" width="5" height="5" rx="1"></rect>
+        <rect class="dot" x="5" y="11.5" width="5" height="5" rx="1"></rect><rect class="dot on" x="11.5" y="11.5" width="5" height="5" rx="1"></rect><rect class="dot" x="18" y="11.5" width="5" height="5" rx="1"></rect>
+        <rect class="dot" x="5" y="18" width="5" height="5" rx="1"></rect><rect class="dot" x="11.5" y="18" width="5" height="5" rx="1"></rect><rect class="dot" x="18" y="18" width="5" height="5" rx="1"></rect>
+      </svg>
+      Binder Gallery
+    </a>
+    <nav class="main" aria-label="Main">
+      <a href="index.html">Browse</a>
+      <a href="#">Sell a design</a>
+      <a href="binder.html" aria-current="page">My binder</a>
+      <a href="#" class="login">Log in</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <!-- Create a binder -->
+    <section id="createView" hidden aria-labelledby="h-create">
+      <h1 id="h-create">Create my binder</h1>
+      <p class="lede">Lay out the cards in your real binder, or plan a new one. Free to use, and you can save it as a PDF or print it to show people.</p>
+      <form class="create" id="createForm" novalidate>
+        <div class="field">
+          <label for="binderName">Binder name</label>
+          <input class="text" id="binderName" type="text" maxlength="60" value="My binder" autocomplete="off">
+        </div>
+        <div class="field">
+          <span class="label" id="lbl-size">Binder size</span>
+          <div class="seg full" role="group" aria-labelledby="lbl-size" id="createSize">
+            <button type="button" data-cols="2">2×2<small>4 per page</small></button>
+            <button type="button" data-cols="3" aria-pressed="true">3×3<small>9 per page</small></button>
+            <button type="button" data-cols="4">4×4<small>16 per page</small></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pageCount">Number of pages</label>
+          <div class="stepper">
+            <button type="button" class="btn icon" id="pagesDown" aria-label="Fewer pages">−</button>
+            <input class="text" id="pageCount" type="number" inputmode="numeric" min="1" max="40" value="10">
+            <button type="button" class="btn icon" id="pagesUp" aria-label="More pages">+</button>
+          </div>
+          <p class="help" id="capacity"></p>
+        </div>
+        <div><button type="submit" class="btn primary">Create my binder</button></div>
+      </form>
+    </section>
+
+    <!-- The binder -->
+    <section id="binderView" hidden aria-labelledby="binderTitle">
+      <div class="bar">
+        <div>
+          <h1 id="binderTitle"></h1>
+          <p class="meta" id="binderMeta"></p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="printBtn">Save as PDF or print</button>
+          <button type="button" class="btn" id="settingsBtn" aria-expanded="false" aria-controls="settings">Binder settings</button>
+        </div>
+      </div>
+
+      <div class="settings" id="settings" hidden>
+        <h2>Binder settings</h2>
+        <div class="field">
+          <label for="renameInput">Binder name</label>
+          <input class="text" id="renameInput" type="text" maxlength="60" autocomplete="off">
+        </div>
+        <div class="field">
+          <span class="label" id="lbl-resize">Binder size</span>
+          <div class="seg full" role="group" aria-labelledby="lbl-resize" id="resizeSeg">
+            <button type="button" data-cols="2">2×2<small>4 per page</small></button>
+            <button type="button" data-cols="3">3×3<small>9 per page</small></button>
+            <button type="button" data-cols="4">4×4<small>16 per page</small></button>
+          </div>
+          <p class="help">Changing size keeps your cards in the same order and refills the pages from the start.</p>
+          <p class="notice" id="resizeMsg" hidden></p>
+        </div>
+        <div class="field">
+          <span class="label">Start again</span>
+          <div class="confirm" id="resetArea">
+            <button type="button" class="btn danger" id="resetBtn">Start a new binder</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="seg" role="group" aria-label="View" id="viewSeg">
+          <button type="button" data-view="single">1 page</button>
+          <button type="button" data-view="spread">2 pages</button>
+        </div>
+        <div class="pager">
+          <button type="button" class="btn icon" id="prevBtn" aria-label="Previous pages">‹</button>
+          <span class="where" id="pageWhere" aria-live="polite"></span>
+          <button type="button" class="btn icon" id="nextBtn" aria-label="Next pages">›</button>
+        </div>
+        <button type="button" class="btn" id="addPageBtn">+ Add page</button>
+      </div>
+
+      <div class="viewer" id="viewer"></div>
+      <p class="foot">Your binder saves automatically in this browser on this device. Card data from <a href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</a>, with missing pictures from the <a href="https://pokemontcg.io" target="_blank" rel="noopener">Pokémon TCG API</a>.</p>
+    </section>
+  </div>
+</main>
+
+<!-- Pick a card for a slot -->
+<dialog id="picker" aria-labelledby="pickerTitle">
+  <div class="dlg">
+    <div class="dlg-head">
+      <h2 id="pickerTitle">Add a card</h2>
+      <button type="button" class="btn icon" id="pickerClose" aria-label="Close">✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="current" id="pickerCurrent" hidden></div>
+      <div>
+        <label class="sr" for="pickerSearch">Search for a card</label>
+        <input class="text" id="pickerSearch" type="search" autocomplete="off" spellcheck="false"
+          placeholder="Card name, number or set, e.g. ceruledge 197/191"
+          role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="pickerResults">
+      </div>
+      <ul class="results" id="pickerResults" role="listbox" aria-label="Matching cards">
+        <li class="list-msg" role="presentation">Start typing to search every card.</li>
+      </ul>
+      <label class="check"><input type="checkbox" id="autoNext" checked> After adding, move to the next empty slot</label>
+      <div class="dlg-foot">
+        <button type="button" class="btn danger" id="removeCard" hidden>Remove card from slot</button>
+        <button type="button" class="btn" id="pickerDone">Done</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Print / PDF options -->
+<dialog id="printDlg" aria-labelledby="printTitle">
+  <div class="dlg">
+    <div class="dlg-head">
+      <h2 id="printTitle">Save as PDF or print</h2>
+      <button type="button" class="btn icon" id="printClose" aria-label="Close">✕</button>
+    </div>
+    <div class="dlg-body">
+      <p style="margin:0">Each binder page prints on its own A4 sheet, with the Binder Gallery name and logo in the top right.</p>
+      <label class="check"><input type="checkbox" id="skipEmpty" checked> Leave out empty pages</label>
+      <p class="help" style="margin:0;font-size:13px;color:var(--muted)">To keep a PDF: on a computer, choose "Save as PDF" as the printer. On iPhone, open the print screen, then tap Share and Save to Files.</p>
+      <p class="status" id="printStatus" aria-live="polite"></p>
+      <div class="dlg-foot">
+        <span></span>
+        <button type="button" class="btn primary" id="printGo">Open print / PDF</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div id="printArea"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'binder-gallery-binder-v1';
+  var MAX_PAGES = 40;
+  var API = 'https://api.tcgdex.net/v2/en';
+  var PTCG = 'https://api.pokemontcg.io/v2/cards';
+
+  var binder = null;          // { name, cols, pages: [[card|null, ...], ...] }
+  var view = 'spread';
+  var first = 0;              // index of the first page on screen
+  var editing = null;         // { p, i }
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attrs, children) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (k === 'text') n.textContent = v;
+      else if (k === 'class') n.className = v;
+      else if (k.indexOf('on') === 0 && typeof v === 'function') n.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined && v !== false) n.setAttribute(k, v);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function perPage() { return binder.cols * binder.cols; }
+  function emptyPage() { var a = []; for (var i = 0; i < perPage(); i++) a.push(null); return a; }
+  function cardCount() { return binder.pages.reduce(function (n, p) { return n + p.filter(Boolean).length; }, 0); }
+  function step() { return view === 'spread' ? 2 : 1; }
+
+  // ---------- saving in this browser ----------
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(binder)); } catch (e) { /* storage unavailable: binder lasts this visit only */ }
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      var b = JSON.parse(raw);
+      if (!b || !b.pages || !b.cols) return null;
+      return b;
+    } catch (e) { return null; }
+  }
+  try { var v = localStorage.getItem(KEY + '-view'); if (v === 'single' || v === 'spread') view = v; } catch (e) {}
+
+  // ---------- create screen ----------
+  var createCols = 3;
+  function updateCapacity() {
+    var n = clampPages($('pageCount').value);
+    $('capacity').textContent = n + (n === 1 ? ' page' : ' pages') + ' × ' + (createCols * createCols) + ' slots = room for ' + (n * createCols * createCols) + ' cards. You can add pages later, up to 40.';
+  }
+  function clampPages(v) { var n = parseInt(v, 10); if (isNaN(n)) n = 1; return Math.max(1, Math.min(MAX_PAGES, n)); }
+  $('createSize').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    createCols = Number(b.dataset.cols);
+    this.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    updateCapacity();
+  });
+  $('pagesDown').addEventListener('click', function () { $('pageCount').value = clampPages($('pageCount').value) - 1 || 1; $('pageCount').value = clampPages($('pageCount').value); updateCapacity(); });
+  $('pagesUp').addEventListener('click', function () { $('pageCount').value = clampPages(clampPages($('pageCount').value) + 1); updateCapacity(); });
+  $('pageCount').addEventListener('input', updateCapacity);
+  $('pageCount').addEventListener('change', function () { this.value = clampPages(this.value); updateCapacity(); });
+  $('createForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = $('binderName').value.trim() || 'My binder';
+    binder = { name: name, cols: createCols, pages: [] };
+    var n = clampPages($('pageCount').value);
+    for (var i = 0; i < n; i++) binder.pages.push(emptyPage());
+    first = 0;
+    save();
+    show();
+  });
+
+  // ---------- binder view ----------
+  function show() {
+    $('createView').hidden = !!binder;
+    $('binderView').hidden = !binder;
+    if (!binder) { updateCapacity(); return; }
+    render();
+  }
+
+  function render() {
+    if (view === 'spread') first -= first % 2;
+    first = Math.max(0, Math.min(first, binder.pages.length - 1));
+    $('binderTitle').textContent = binder.name;
+    var total = binder.pages.length, cards = cardCount();
+    $('binderMeta').textContent = binder.cols + '×' + binder.cols + ' binder · ' + total + (total === 1 ? ' page · ' : ' pages · ') + cards + (cards === 1 ? ' card' : ' cards');
+    $('viewSeg').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.view === view ? 'true' : 'false'); });
+    $('resizeSeg').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', Number(b.dataset.cols) === binder.cols ? 'true' : 'false'); });
+
+    var last = Math.min(first + step(), total) - 1;
+    $('pageWhere').textContent = (first === last ? 'Page ' + (first + 1) : 'Pages ' + (first + 1) + '–' + (last + 1)) + ' of ' + total;
+    $('prevBtn').disabled = first === 0;
+    $('nextBtn').disabled = first + step() >= total;
+    $('addPageBtn').disabled = total >= MAX_PAGES;
+    $('addPageBtn').title = total >= MAX_PAGES ? '40 pages is the most a binder can have' : '';
+
+    var viewer = $('viewer');
+    viewer.className = 'viewer' + (view === 'spread' ? ' spread' : '');
+    viewer.textContent = '';
+    for (var p = first; p <= last; p++) viewer.appendChild(renderPage(p));
+    sizePages();
+  }
+
+  function renderPage(p) {
+    var page = binder.pages[p];
+    var filled = page.filter(Boolean).length;
+    var tools = el('span', { class: 'tools' }, [el('span', { class: 'count', text: filled + '/' + page.length })]);
+    if (binder.pages.length > 1) {
+      tools.appendChild(el('button', { type: 'button', class: 'linkbtn', text: 'Delete', 'aria-label': 'Delete page ' + (p + 1), onclick: function () {
+        tools.textContent = '';
+        tools.appendChild(el('span', { text: 'Delete page ' + (p + 1) + (filled ? ' and its ' + filled + (filled === 1 ? ' card?' : ' cards?') : '?') }));
+        tools.appendChild(el('button', { type: 'button', class: 'linkbtn danger', text: 'Delete', onclick: function () {
+          binder.pages.splice(p, 1); save(); render();
+        } }));
+        tools.appendChild(el('button', { type: 'button', class: 'linkbtn', text: 'Keep', onclick: render }));
+      } }));
+    }
+    var grid = el('div', { class: 'pgrid' });
+    grid.style.gridTemplateColumns = 'repeat(' + binder.cols + ', minmax(0, 1fr))';
+    page.forEach(function (card, i) {
+      var b = el('button', { type: 'button', class: 'slot' + (card ? ' filled' : ''), onclick: function () { openPicker(p, i); } });
+      if (card) {
+        b.setAttribute('aria-label', 'Page ' + (p + 1) + ', slot ' + (i + 1) + ': ' + card.name + ' #' + card.number + ', ' + card.setName + '. Tap to change.');
+        if (card.image) b.appendChild(el('img', { src: card.image, alt: '', loading: 'lazy' }));
+        else b.appendChild(el('span', { class: 'noimg', text: card.name + ' #' + card.number }));
+      } else {
+        b.setAttribute('aria-label', 'Page ' + (p + 1) + ', slot ' + (i + 1) + ', empty. Tap to add a card.');
+        b.appendChild(el('span', { text: '+', 'aria-hidden': 'true' }));
+      }
+      grid.appendChild(b);
+    });
+    return el('article', { class: 'bpage', 'aria-label': 'Page ' + (p + 1) }, [
+      el('div', { class: 'phead' }, [el('strong', { text: 'Page ' + (p + 1) }), tools]),
+      grid
+    ]);
+  }
+
+  // Fit one page, or two side by side, inside the visible screen height
+  function sizePages() {
+    var viewer = $('viewer');
+    if (!binder || $('binderView').hidden) return;
+    var W = viewer.clientWidth;
+    var top = viewer.getBoundingClientRect().top + window.scrollY;
+    var H = Math.max(300, window.innerHeight - top - 16);
+    var c = binder.cols, gap = 5;
+    var inner = H - 72 - (c - 1) * gap;           // page padding, header, grid padding, borders
+    var slotW = (inner / c) * 65 / 90;
+    var byHeight = c * slotW + (c - 1) * gap + 34;
+    var pw = view === 'spread' ? Math.min((W - 16) / 2, byHeight) : Math.min(W, byHeight, 560);
+    viewer.style.setProperty('--pw', Math.floor(pw) + 'px');
+  }
+  window.addEventListener('resize', sizePages);
+
+  $('viewSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    view = b.dataset.view;
+    try { localStorage.setItem(KEY + '-view', view); } catch (err) {}
+    render();
+    $('viewer').scrollIntoView({ block: 'nearest' });
+  });
+  $('prevBtn').addEventListener('click', function () { first = Math.max(0, first - step()); render(); });
+  $('nextBtn').addEventListener('click', function () { first = Math.min(binder.pages.length - 1, first + step()); render(); });
+  $('addPageBtn').addEventListener('click', function () {
+    if (binder.pages.length >= MAX_PAGES) return;
+    binder.pages.push(emptyPage());
+    first = binder.pages.length - 1;
+    save(); render();
+  });
+
+  // ---------- settings ----------
+  $('settingsBtn').addEventListener('click', function () {
+    var open = $('settings').hidden;
+    $('settings').hidden = !open;
+    this.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { $('renameInput').value = binder.name; $('resizeMsg').hidden = true; resetResetArea(); }
+    sizePages();
+  });
+  $('renameInput').addEventListener('input', function () {
+    binder.name = this.value.trim() || 'My binder';
+    $('binderTitle').textContent = binder.name;
+    save();
+  });
+  $('resizeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var cols = Number(b.dataset.cols);
+    if (cols === binder.cols) return;
+    var cards = [];
+    binder.pages.forEach(function (p) { p.forEach(function (c) { if (c) cards.push(c); }); });
+    var per = cols * cols;
+    var need = Math.max(Math.ceil(cards.length / per), 1);
+    var msg = $('resizeMsg');
+    if (need > MAX_PAGES) {
+      msg.hidden = false;
+      msg.textContent = 'Your ' + cards.length + ' cards need ' + need + ' pages at ' + cols + '×' + cols + ', but the limit is 40. Remove some cards first.';
+      return;
+    }
+    var pagesWanted = Math.min(MAX_PAGES, Math.max(need, binder.pages.length));
+    binder.cols = cols;
+    binder.pages = [];
+    for (var p = 0; p < pagesWanted; p++) {
+      var page = [];
+      for (var i = 0; i < per; i++) page.push(cards[p * per + i] || null);
+      binder.pages.push(page);
+    }
+    first = 0;
+    msg.hidden = false;
+    msg.textContent = 'Changed to ' + cols + '×' + cols + '. Your ' + cards.length + (cards.length === 1 ? ' card is' : ' cards are') + ' now on pages 1–' + need + ' in the same order.';
+    save(); render();
+  });
+  function resetResetArea() {
+    var area = $('resetArea');
+    area.textContent = '';
+    area.appendChild(el('button', { type: 'button', class: 'btn danger', text: 'Start a new binder', onclick: function () {
+      area.textContent = '';
+      area.appendChild(el('span', { text: 'This clears ' + binder.name + ' from this device. Continue?' }));
+      area.appendChild(el('button', { type: 'button', class: 'btn danger', text: 'Clear and start again', onclick: function () {
+        binder = null;
+        try { localStorage.removeItem(KEY); } catch (err) {}
+        $('settings').hidden = true;
+        $('settingsBtn').setAttribute('aria-expanded', 'false');
+        show();
+      } }));
+      area.appendChild(el('button', { type: 'button', class: 'btn', text: 'Keep my binder', onclick: resetResetArea }));
+    } }));
+  }
+
+  // ---------- card search (TCGdex, Pokémon TCG API for missing pictures) ----------
+  function norm(str) { return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  function wordsOf(str) { return norm(str).split(/[^a-z0-9]+/).filter(Boolean); }
+  function stripZeros(x) { return String(x).replace(/^0+(?=\d)/, '').toLowerCase(); }
+
+  var setsPromise = null;
+  function loadSets() {
+    if (!setsPromise) {
+      setsPromise = fetch(API + '/sets')
+        .then(function (r) { if (!r.ok) throw new Error('sets ' + r.status); return r.json(); })
+        .then(function (list) {
+          var map = {}, all = [], words = new Set();
+          list.forEach(function (s, idx) {
+            var entry = { id: s.id, name: s.name, official: s.cardCount && s.cardCount.official, order: idx, words: wordsOf(s.name) };
+            map[s.id] = entry; all.push(entry);
+            entry.words.forEach(function (w) { words.add(w); });
+          });
+          return { map: map, list: all, words: words, wordList: Array.from(words) };
+        })
+        .catch(function (err) { setsPromise = null; throw err; });
+    }
+    return setsPromise;
+  }
+  function parseQuery(q) {
+    var tokens = q.trim().replace(/#/g, ' ').split(/\s+/).filter(Boolean);
+    var words = [], num = null, total = null;
+    tokens.forEach(function (t) {
+      var m = t.match(/^([a-z]{0,4}\d+[a-z]?)(?:\/(\d+))?$/i);
+      if (m && /\d/.test(m[1]) && num === null) { num = m[1]; total = m[2] || null; }
+      else words = words.concat(wordsOf(t));
+    });
+    return { words: words, num: num, total: total };
+  }
+  function getJSON(url, signal) {
+    return fetch(url, { signal: signal }).then(function (r) { if (!r.ok) throw new Error(r.status + ' ' + url); return r.json(); });
+  }
+  var cache = {};
+  function searchCards(q, signal) {
+    var p = parseQuery(q);
+    if (!p.words.length || p.words.join('').length < 2) return Promise.resolve({ results: [], tooShort: true });
+    var key = p.words.join(' ') + '|' + (p.num || '') + '|' + (p.total || '');
+    if (cache[key]) return Promise.resolve(cache[key]);
+    return loadSets().then(function (S) {
+      var lastW = p.words.length - 1;
+      function isSetWord(w, i) {
+        if (S.words.has(w)) return true;
+        return i === lastW && w.length >= 3 && S.wordList.some(function (x) { return x.indexOf(w) === 0; });
+      }
+      function setMatches(s) { return p.words.every(function (w) { return s.words.some(function (x) { return x.indexOf(w) === 0; }); }); }
+      var numIsSetWord = !!(p.num && !p.total && S.words.has(p.num.toLowerCase()));
+      var cardWord = p.words.filter(function (w, i) { return w.length >= 2 && !isSetWord(w, i); })[0];
+      var fetchCards;
+      if (cardWord) {
+        var url = API + '/cards?name=' + encodeURIComponent(cardWord);
+        if (p.num && !numIsSetWord) url += '&localId=' + encodeURIComponent(stripZeros(p.num));
+        fetchCards = getJSON(url, signal);
+      } else {
+        var sets = S.list.filter(setMatches);
+        if (sets.length && sets.length <= 4) {
+          fetchCards = Promise.all(sets.map(function (s) {
+            return getJSON(API + '/sets/' + encodeURIComponent(s.id), signal).then(function (d) {
+              return (d.cards || []).map(function (c) { return { id: c.id || (s.id + '-' + c.localId), localId: c.localId, name: c.name, image: c.image }; });
+            });
+          })).then(function (arrs) { return [].concat.apply([], arrs); });
+        } else {
+          fetchCards = getJSON(API + '/cards?name=' + encodeURIComponent(p.words[0]), signal);
+        }
+      }
+      return fetchCards.then(function (cards) {
+        var out = [];
+        (cards || []).forEach(function (c) {
+          var setId = c.id.slice(0, c.id.lastIndexOf('-'));
+          var s = S.map[setId];
+          if (!s) return;
+          var hay = wordsOf(c.name).concat(s.words);
+          if (!p.words.every(function (w) { return hay.some(function (h) { return h.indexOf(w) === 0; }); })) return;
+          if (p.num) {
+            var numOk = stripZeros(c.localId) === stripZeros(p.num);
+            if (numIsSetWord) { if (!numOk && s.words.indexOf(p.num.toLowerCase()) === -1) return; }
+            else if (!numOk) return;
+          }
+          if (p.total && String(s.official) !== String(Number(p.total))) return;
+          out.push({ id: c.id, name: c.name, localId: c.localId, official: s.official,
+            number: c.localId + (s.official ? '/' + s.official : ''), setName: s.name, order: s.order,
+            image: c.image ? c.image + '/low.webp' : null });
+        });
+        out.sort(function (x, y) {
+          if (y.order !== x.order) return y.order - x.order;
+          return (parseInt(x.localId, 10) || 0) - (parseInt(y.localId, 10) || 0);
+        });
+        var result = { results: out.slice(0, 40), more: out.length > 40 };
+        cache[key] = result;
+        return result;
+      });
+    });
+  }
+  var backupCache = {};
+  function findBackupImage(c) {
+    if (backupCache[c.id] !== undefined) return backupCache[c.id];
+    var q = 'name:"' + c.name.replace(/"/g, '') + '" number:' + stripZeros(c.localId).toUpperCase() + (c.official ? ' set.printedTotal:' + c.official : '');
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+    backupCache[c.id] = fetch(PTCG + '?q=' + encodeURIComponent(q) + '&pageSize=3&select=images', { signal: ctrl.signal })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { var hit = d && d.data && d.data[0]; return (hit && hit.images && hit.images.small) || null; })
+      .catch(function () { return null; })
+      .then(function (url) { clearTimeout(timer); return url; });
+    return backupCache[c.id];
+  }
+  function thumbFor(c) {
+    if (c.image) return el('div', { class: 'thumb' }, [el('img', { src: c.image, alt: '', loading: 'lazy' })]);
+    return el('div', { class: 'thumb noimg' }, [el('span', { text: 'No picture yet' })]);
+  }
+  function stored(c) {
+    return { id: c.id, name: c.name, localId: c.localId, official: c.official, number: c.number, setName: c.setName, image: c.image };
+  }
+
+  // ---------- card picker ----------
+  var picker = $('picker'), input = $('pickerSearch'), list = $('pickerResults');
+  var items = [], activeIdx = -1, timer = null, controller = null;
+
+  function slotTitle(p, i) { return 'Page ' + (p + 1) + ', slot ' + (i + 1); }
+  function openPicker(p, i) {
+    editing = { p: p, i: i };
+    fillPickerHead();
+    input.value = '';
+    listMessage('Start typing to search every card.');
+    if (typeof picker.showModal === 'function') { if (!picker.open) picker.showModal(); }
+    else picker.setAttribute('open', '');
+    setTimeout(function () { input.focus(); }, 30);
+  }
+  function fillPickerHead() {
+    var card = binder.pages[editing.p][editing.i];
+    $('pickerTitle').textContent = (card ? 'Change card · ' : 'Add a card · ') + slotTitle(editing.p, editing.i);
+    var cur = $('pickerCurrent');
+    cur.textContent = '';
+    cur.hidden = !card;
+    $('removeCard').hidden = !card;
+    if (card) cur.appendChild(thumbFor(card)), cur.appendChild(el('div', { class: 'txt' }, [el('b', { text: card.name }), el('span', { text: ' • #' + card.number + ' • ' + card.setName })]));
+  }
+  function closePicker() {
+    if (picker.open) { if (typeof picker.close === 'function') picker.close(); else picker.removeAttribute('open'); }
+    editing = null;
+    if (controller) controller.abort();
+    render();
+  }
+  $('pickerClose').addEventListener('click', closePicker);
+  $('pickerDone').addEventListener('click', closePicker);
+  picker.addEventListener('cancel', function (e) { e.preventDefault(); closePicker(); });
+  picker.addEventListener('click', function (e) { if (e.target === picker) closePicker(); });
+  $('removeCard').addEventListener('click', function () {
+    binder.pages[editing.p][editing.i] = null;
+    save();
+    fillPickerHead();
+    render();
+    input.focus();
+  });
+
+  function listMessage(text) {
+    items = []; activeIdx = -1;
+    list.textContent = '';
+    list.appendChild(el('li', { class: 'list-msg', role: 'presentation', text: text }));
+    input.removeAttribute('aria-activedescendant');
+  }
+  function highlight(i) {
+    activeIdx = i;
+    Array.prototype.forEach.call(list.querySelectorAll('[role=option]'), function (o, j) {
+      o.setAttribute('aria-selected', j === i ? 'true' : 'false');
+      if (j === i) { input.setAttribute('aria-activedescendant', o.id); o.scrollIntoView({ block: 'nearest' }); }
+    });
+  }
+  function nextEmptyAfter(p, i) {
+    for (var pp = p; pp < binder.pages.length; pp++) {
+      for (var ii = (pp === p ? i + 1 : 0); ii < binder.pages[pp].length; ii++) {
+        if (!binder.pages[pp][ii]) return { p: pp, i: ii };
+      }
+    }
+    return null;
+  }
+  function choose(j) {
+    var c = items[j]; if (!c || !editing) return;
+    var target = editing;
+    var card = stored(c);
+    binder.pages[target.p][target.i] = card;
+    save();
+    if (!card.image) findBackupImage(c).then(function (url) {
+      if (url && binder.pages[target.p] && binder.pages[target.p][target.i] === card) { card.image = url; save(); render(); }
+    });
+    var next = $('autoNext').checked ? nextEmptyAfter(target.p, target.i) : null;
+    if (next) {
+      editing = next;
+      if (next.p < first || next.p >= first + step()) first = next.p;
+      render();
+      fillPickerHead();
+      input.value = '';
+      listMessage('Added ' + c.name + '. Search for the next card.');
+      input.focus();
+    } else {
+      closePicker();
+    }
+  }
+  function showResults(res) {
+    items = res.results;
+    list.textContent = '';
+    if (res.tooShort) { listMessage('Start typing to search every card.'); return; }
+    if (!items.length) { listMessage('No cards match. Try the card name with its number or set, like "ceruledge 197/191" or "ceruledge surging sparks".'); return; }
+    var lookups = 0;
+    items.forEach(function (c, j) {
+      var thumb = thumbFor(c);
+      var li = el('li', { class: 'opt', role: 'option', id: 'pick-opt-' + j, 'aria-selected': 'false' }, [
+        thumb, el('div', { class: 'txt' }, [el('b', { text: c.name }), el('span', { text: ' • #' + c.number + ' • ' + c.setName })])
+      ]);
+      li.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      li.addEventListener('click', function () { choose(j); });
+      list.appendChild(li);
+      if (!c.image && lookups < 8) {
+        lookups++;
+        findBackupImage(c).then(function (url) {
+          if (!url || c.image) return;
+          c.image = url;
+          thumb.className = 'thumb'; thumb.textContent = '';
+          thumb.appendChild(el('img', { src: url, alt: '' }));
+        });
+      }
+    });
+    if (res.more) list.appendChild(el('li', { class: 'list-msg', role: 'presentation', text: 'Showing the first 40. Add a number or set name to narrow it down.' }));
+    highlight(0);
+  }
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = input.value;
+    if (parseQuery(q).words.join('').length < 2) { listMessage('Start typing to search every card.'); return; }
+    timer = setTimeout(function () {
+      if (controller) controller.abort();
+      controller = new AbortController();
+      listMessage('Searching…');
+      searchCards(q, controller.signal).then(function (res) { if (input.value === q) showResults(res); })
+        .catch(function (err) { if (err.name !== 'AbortError') listMessage('Couldn\'t reach the card database. Check your connection and try again.'); });
+    }, 220);
+  });
+  input.addEventListener('keydown', function (e) {
+    var opts = list.querySelectorAll('[role=option]');
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (opts.length) highlight(Math.min(activeIdx + 1, opts.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (opts.length) highlight(Math.max(activeIdx - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx >= 0) choose(activeIdx); }
+  });
+
+  // ---------- PDF / print ----------
+  var printDlg = $('printDlg');
+  var LOGO = '<svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="5" fill="none" stroke="#16181D" stroke-width="2"></rect><rect x="5" y="5" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="11.5" y="5" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="18" y="5" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="5" y="11.5" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="11.5" y="11.5" width="5" height="5" rx="1" fill="#2F5BEA"></rect><rect x="18" y="11.5" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="5" y="18" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="11.5" y="18" width="5" height="5" rx="1" fill="#16181D"></rect><rect x="18" y="18" width="5" height="5" rx="1" fill="#16181D"></rect></svg>';
+  function hiRes(url) {
+    if (!url) return url;
+    if (url.indexOf('/low.webp') !== -1) return url.replace('/low.webp', '/high.webp');
+    if (/images\.pokemontcg\.io/.test(url) && !/_hires\.png$/.test(url)) return url.replace(/\.png$/, '_hires.png');
+    return url;
+  }
+  $('printBtn').addEventListener('click', function () {
+    $('printStatus').textContent = '';
+    $('printGo').disabled = false;
+    if (typeof printDlg.showModal === 'function') printDlg.showModal(); else printDlg.setAttribute('open', '');
+  });
+  function closePrint() { if (printDlg.open) { if (printDlg.close) printDlg.close(); else printDlg.removeAttribute('open'); } }
+  $('printClose').addEventListener('click', closePrint);
+  printDlg.addEventListener('click', function (e) { if (e.target === printDlg) closePrint(); });
+
+  $('printGo').addEventListener('click', function () {
+    var skip = $('skipEmpty').checked;
+    var pages = [];
+    binder.pages.forEach(function (pg, idx) { if (!skip || pg.some(Boolean)) pages.push(idx); });
+    if (!pages.length) { $('printStatus').textContent = 'There are no cards to print yet. Add some cards or untick "Leave out empty pages".'; return; }
+    $('printGo').disabled = true;
+    $('printStatus').textContent = 'Preparing ' + pages.length + (pages.length === 1 ? ' page…' : ' pages…');
+
+    var area = $('printArea');
+    area.textContent = '';
+    var imgs = [];
+    pages.forEach(function (idx) {
+      var pg = binder.pages[idx];
+      var head = el('div', { class: 'pphead' }, [
+        el('div', { class: 'left' }, [el('strong', { text: binder.name }), el('span', { text: 'Page ' + (idx + 1) + ' of ' + binder.pages.length + ' · ' + pg.filter(Boolean).length + ' cards' })])
+      ]);
+      var mark = el('div', { class: 'mark' });
+      mark.innerHTML = LOGO;
+      mark.appendChild(document.createTextNode('Binder Gallery'));
+      head.appendChild(mark);
+      var grid = el('div', { class: 'ppgrid' });
+      grid.style.gridTemplateColumns = 'repeat(' + binder.cols + ', minmax(0, 1fr))';
+      pg.forEach(function (c) {
+        var s = el('div', { class: 'ppslot' + (c ? ' filled' : '') });
+        if (c && c.image) {
+          var img = el('img', { src: hiRes(c.image), alt: c.name });
+          img.dataset.fallback = c.image;
+          imgs.push(img);
+          s.appendChild(img);
+        } else if (c) {
+          s.appendChild(el('div', { class: 'noimg', text: c.name + ' #' + c.number + ' · ' + c.setName }));
+        }
+        grid.appendChild(s);
+      });
+      area.appendChild(el('section', { class: 'ppage' }, [head, grid, el('div', { class: 'ppfoot', text: 'Made with Binder Gallery' })]));
+    });
+
+    var waits = imgs.map(function (img) {
+      return new Promise(function (res) {
+        if (img.complete && img.naturalWidth) return res();
+        img.onload = res;
+        img.onerror = function () {
+          if (img.dataset.fallback && img.src !== img.dataset.fallback) { img.onerror = res; img.src = img.dataset.fallback; }
+          else res();
+        };
+      });
+    });
+    var timeout = new Promise(function (res) { setTimeout(res, 12000); });
+    Promise.race([Promise.all(waits), timeout]).then(function () {
+      $('printStatus').textContent = 'Opening the print screen…';
+      closePrint();
+      setTimeout(function () { window.print(); $('printGo').disabled = false; }, 100);
+    });
+  });
+
+  // ---------- start ----------
+  binder = load();
+  show();
+})();
+</script>
+</body>
+</html>
