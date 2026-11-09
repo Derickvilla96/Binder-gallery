@@ -153,7 +153,7 @@ dialog::backdrop { background: rgba(10,12,16,0.5); }
   body { background: #FFFFFF; color: #16181D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body > *:not(#printArea) { display: none !important; }
   #printArea { display: block; }
-  .ppage { height: 270mm; display: flex; flex-direction: column; gap: 6mm; break-after: page; page-break-after: always; overflow: hidden; }
+  .ppage { display: flex; flex-direction: column; gap: 6mm; break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
   .ppage:last-child { break-after: auto; page-break-after: auto; }
   .pphead { display: flex; justify-content: space-between; align-items: flex-start; height: 12mm; font-family: var(--body); }
   .pphead .left strong { display: block; font: 600 13pt/1.2 var(--display); }
@@ -162,10 +162,10 @@ dialog::backdrop { background: rgba(10,12,16,0.5); }
   .pphead .mark .frame { fill: none; stroke: #16181D; stroke-width: 2; }
   .pphead .mark .dot { fill: #16181D; }
   .pphead .mark .dot.on { fill: #2F5BEA; }
-  .ppgrid { display: grid; gap: 2.5mm; width: 176mm; margin: 0 auto; }
-  .ppslot { aspect-ratio: 65 / 90; border: 0.3mm dashed #B3B9C6; border-radius: 1.5mm; overflow: hidden; display: block; }
+  .ppgrid { display: grid; justify-content: center; margin: 0 auto; }
+  .ppslot { box-sizing: border-box; border: 0.3mm dashed #B3B9C6; border-radius: 1.5mm; overflow: hidden; display: block; }
   .ppslot.filled { border: 0; }
-  .ppslot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ppslot img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: cover; display: block; }
   .ppslot .noimg { width: 100%; height: 100%; display: grid; place-items: center; text-align: center; font-size: 8pt; background: #EEF0F3; padding: 2mm; }
   .ppfoot { margin-top: auto; text-align: center; font-size: 8pt; color: #50566A; }
 }
@@ -816,6 +816,15 @@ dialog::backdrop { background: rgba(10,12,16,0.5); }
     if (/images\.pokemontcg\.io/.test(url) && !/_hires\.png$/.test(url)) return url.replace(/\.png$/, '_hires.png');
     return url;
   }
+  // Slot size on paper: kept at the 65 × 90 mm shape, scaled down so every row and column fits on A4
+  function printSlotSize(cols) {
+    var gap = cols >= 4 ? 2.5 : 3;
+    var maxW = 180, maxH = 228;                   // room left on A4 after margins, header and footer
+    var byWidth = (maxW - (cols - 1) * gap) / cols;
+    var byHeight = (maxH - (cols - 1) * gap) / cols * 65 / 90;
+    var w = Math.min(byWidth, byHeight, 65);
+    return { w: +w.toFixed(2), h: +(w * 90 / 65).toFixed(2), gap: gap };
+  }
   $('printBtn').addEventListener('click', function () {
     $('printStatus').textContent = '';
     $('printGo').disabled = false;
@@ -833,6 +842,7 @@ dialog::backdrop { background: rgba(10,12,16,0.5); }
     $('printGo').disabled = true;
     $('printStatus').textContent = 'Preparing ' + pages.length + (pages.length === 1 ? ' page…' : ' pages…');
 
+    var size = printSlotSize(binder.cols);
     var area = $('printArea');
     area.textContent = '';
     var imgs = [];
@@ -846,9 +856,13 @@ dialog::backdrop { background: rgba(10,12,16,0.5); }
       mark.appendChild(document.createTextNode('Binder Gallery'));
       head.appendChild(mark);
       var grid = el('div', { class: 'ppgrid' });
-      grid.style.gridTemplateColumns = 'repeat(' + binder.cols + ', minmax(0, 1fr))';
+      grid.style.gridTemplateColumns = 'repeat(' + binder.cols + ', ' + size.w + 'mm)';
+      grid.style.gridAutoRows = size.h + 'mm';
+      grid.style.gap = size.gap + 'mm';
       pg.forEach(function (c) {
         var s = el('div', { class: 'ppslot' + (c ? ' filled' : '') });
+        s.style.width = size.w + 'mm';
+        s.style.height = size.h + 'mm';
         if (c && c.image) {
           var img = el('img', { src: hiRes(c.image), alt: c.name });
           img.dataset.fallback = c.image;
