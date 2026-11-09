@@ -113,6 +113,7 @@ main .wrap { padding-block: 28px 56px; }
 .opt .txt { min-width: 0; font-size: 14px; }
 .opt .txt b { font-weight: 600; }
 .opt .txt span { color: var(--muted); }
+.thumb.noimg { display: grid; place-items: center; text-align: center; font-size: 9px; line-height: 1.2; color: var(--muted); border: 1px dashed var(--line-strong); padding: 2px; }
 .list-msg { padding: 10px 12px; font-size: 14px; color: var(--muted); }
 .picked { display: flex; align-items: center; gap: 12px; background: var(--accent-soft); border-radius: 10px; padding: 8px; }
 .picked .thumb { width: 52px; aspect-ratio: 63 / 88; border-radius: 4px; overflow: hidden; background: var(--chip); flex: none; }
@@ -228,7 +229,7 @@ main .wrap { padding-block: 28px 56px; }
           </div>
         </div>
         <div id="designArea"></div>
-        <p class="foot">Downloads come as a print-ready PDF at 100% scale, with 3 mm bleed and crop marks at every slot edge. Card data and images from <a href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</a>.</p>
+        <p class="foot">Downloads come as a print-ready PDF at 100% scale, with 3 mm bleed and crop marks at every slot edge. Card data from <a href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</a>, with missing pictures filled in from the <a href="https://pokemontcg.io" target="_blank" rel="noopener">Pokémon TCG API</a> where it has them.</p>
       </section>
     </div>
   </div>
@@ -367,76 +368,159 @@ main .wrap { padding-block: 28px 56px; }
 
   // ---------- card search (TCGdex) ----------
   var setsPromise = null;
+  function norm(str) {
+    return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+  function wordsOf(str) {
+    return norm(str).split(/[^a-z0-9]+/).filter(Boolean);
+  }
+  function stripZeros(x) { return String(x).replace(/^0+(?=\d)/, '').toLowerCase(); }
+
   function loadSets() {
     if (!setsPromise) {
       setsPromise = fetch(API + '/sets')
         .then(function (r) { if (!r.ok) throw new Error('sets ' + r.status); return r.json(); })
         .then(function (list) {
-          var map = {};
+          var map = {}, all = [], words = new Set();
           list.forEach(function (s, idx) {
-            map[s.id] = { name: s.name, official: s.cardCount && s.cardCount.official, order: idx };
+            var entry = { id: s.id, name: s.name, official: s.cardCount && s.cardCount.official, order: idx, words: wordsOf(s.name) };
+            map[s.id] = entry;
+            all.push(entry);
+            entry.words.forEach(function (w) { words.add(w); });
           });
-          return map;
+          return { map: map, list: all, words: words, wordList: Array.from(words) };
         })
         .catch(function (err) { setsPromise = null; throw err; });
     }
     return setsPromise;
   }
 
+  // Splits "ceruledge surging sparks 197/191" into words, a card number and a set total
   function parseQuery(q) {
     var tokens = q.trim().replace(/#/g, ' ').split(/\s+/).filter(Boolean);
-    var nameParts = [], num = null, total = null;
+    var words = [], num = null, total = null;
     tokens.forEach(function (t) {
       var m = t.match(/^([a-z]{0,4}\d+[a-z]?)(?:\/(\d+))?$/i);
       if (m && /\d/.test(m[1]) && num === null) { num = m[1]; total = m[2] || null; }
-      else nameParts.push(t);
+      else words = words.concat(wordsOf(t));
     });
-    return { name: nameParts.join(' '), num: num, total: total };
+    return { words: words, num: num, total: total };
+  }
+
+  function getJSON(url, signal) {
+    return fetch(url, { signal: signal }).then(function (r) {
+      if (!r.ok) throw new Error(r.status + ' ' + url);
+      return r.json();
+    });
   }
 
   var cache = {};
   function searchCards(q, signal) {
     var p = parseQuery(q);
-    if (p.name.length < 2) return Promise.resolve({ results: [], tooShort: true });
-    var url = API + '/cards?name=' + encodeURIComponent(p.name);
-    if (p.num) url += '&localId=' + encodeURIComponent(p.num.replace(/^0+(?=\d)/, ''));
-    else url += '&pagination:page=1&pagination:itemsPerPage=80';
-    var key = url + '|' + (p.total || '') + '|' + (p.num || '');
+    if (!p.words.length || p.words.join('').length < 2) return Promise.resolve({ results: [], tooShort: true });
+    var key = p.words.join(' ') + '|' + (p.num || '') + '|' + (p.total || '');
     if (cache[key]) return Promise.resolve(cache[key]);
 
-    return Promise.all([
-      fetch(url, { signal: signal }).then(function (r) { if (!r.ok) throw new Error('cards ' + r.status); return r.json(); }),
-      loadSets()
-    ]).then(function (res) {
-      var cards = res[0] || [], sets = res[1];
-      var out = [];
-      cards.forEach(function (c) {
-        var setId = c.id.slice(0, c.id.lastIndexOf('-'));
-        var s = sets[setId];
-        if (!s) return;
-        if (p.num) {
-          var a = c.localId.replace(/^0+(?=\d)/, '').toLowerCase();
-          var b = p.num.replace(/^0+(?=\d)/, '').toLowerCase();
-          if (a !== b) return;
+    return loadSets().then(function (S) {
+      var last = p.words.length - 1;
+      // A word counts as part of a set name if a set uses it; the word still being typed only needs to start one
+      function isSetWord(w, i) {
+        if (S.words.has(w)) return true;
+        return i === last && w.length >= 3 && S.wordList.some(function (x) { return x.indexOf(w) === 0; });
+      }
+      function setMatches(s) {
+        return p.words.every(function (w) { return s.words.some(function (x) { return x.indexOf(w) === 0; }); });
+      }
+      var numIsSetWord = !!(p.num && !p.total && S.words.has(p.num.toLowerCase()));
+      var cardWord = p.words.filter(function (w, i) { return w.length >= 2 && !isSetWord(w, i); })[0];
+
+      var fetchCards;
+      if (cardWord) {
+        var url = API + '/cards?name=' + encodeURIComponent(cardWord);
+        if (p.num && !numIsSetWord) url += '&localId=' + encodeURIComponent(stripZeros(p.num));
+        fetchCards = getJSON(url, signal);
+      } else {
+        var sets = S.list.filter(setMatches);
+        if (sets.length && sets.length <= 4) {
+          fetchCards = Promise.all(sets.map(function (s) {
+            return getJSON(API + '/sets/' + encodeURIComponent(s.id), signal).then(function (d) {
+              return (d.cards || []).map(function (c) {
+                return { id: c.id || (s.id + '-' + c.localId), localId: c.localId, name: c.name, image: c.image };
+              });
+            });
+          })).then(function (arrs) { return [].concat.apply([], arrs); });
+        } else {
+          fetchCards = getJSON(API + '/cards?name=' + encodeURIComponent(p.words[0]), signal);
         }
-        if (p.total && String(s.official) !== String(Number(p.total))) return;
-        out.push({
-          id: c.id,
-          name: c.name,
-          number: c.localId + (s.official ? '/' + s.official : ''),
-          setName: s.name,
-          order: s.order,
-          image: c.image ? c.image + '/low.webp' : null
+      }
+
+      return fetchCards.then(function (cards) {
+        var out = [];
+        (cards || []).forEach(function (c) {
+          var setId = c.id.slice(0, c.id.lastIndexOf('-'));
+          var s = S.map[setId];
+          if (!s) return;
+          var hay = wordsOf(c.name).concat(s.words);
+          var wordsOk = p.words.every(function (w) { return hay.some(function (h) { return h.indexOf(w) === 0; }); });
+          if (!wordsOk) return;
+          if (p.num) {
+            var numOk = stripZeros(c.localId) === stripZeros(p.num);
+            if (numIsSetWord) { if (!numOk && s.words.indexOf(p.num.toLowerCase()) === -1) return; }
+            else if (!numOk) return;
+          }
+          if (p.total && String(s.official) !== String(Number(p.total))) return;
+          out.push({
+            id: c.id,
+            name: c.name,
+            localId: c.localId,
+            official: s.official,
+            number: c.localId + (s.official ? '/' + s.official : ''),
+            setName: s.name,
+            order: s.order,
+            image: c.image ? c.image + '/low.webp' : null
+          });
         });
+        out.sort(function (x, y) {
+          if (y.order !== x.order) return y.order - x.order;
+          return (parseInt(x.localId, 10) || 0) - (parseInt(y.localId, 10) || 0);
+        });
+        var result = { results: out.slice(0, 30), more: out.length > 30 };
+        cache[key] = result;
+        return result;
       });
-      out.sort(function (x, y) {
-        if (y.order !== x.order) return y.order - x.order;
-        return (parseInt(x.number, 10) || 0) - (parseInt(y.number, 10) || 0);
-      });
-      var result = { results: out.slice(0, 12) };
-      cache[key] = result;
-      return result;
     });
+  }
+
+  // Backup pictures: TCGdex has no scan yet for some cards, so ask the Pokémon TCG API for one
+  var PTCG = 'https://api.pokemontcg.io/v2/cards';
+  var backupCache = {};
+  function findBackupImage(c) {
+    if (backupCache[c.id] !== undefined) return backupCache[c.id];
+    var q = 'name:"' + c.name.replace(/"/g, '') + '" number:' + stripZeros(c.localId).toUpperCase() +
+      (c.official ? ' set.printedTotal:' + c.official : '');
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+    backupCache[c.id] = fetch(PTCG + '?q=' + encodeURIComponent(q) + '&pageSize=3&select=images', { signal: ctrl.signal })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var hit = d && d.data && d.data[0];
+        return (hit && hit.images && hit.images.small) || null;
+      })
+      .catch(function () { return null; })
+      .then(function (url) { clearTimeout(timer); return url; });
+    return backupCache[c.id];
+  }
+
+  function thumbFor(c, cls) {
+    if (c.image) return el('div', { class: cls }, [el('img', { src: c.image, alt: '', loading: 'lazy' })]);
+    return el('div', { class: cls + ' noimg' }, [el('span', { text: 'No picture yet' })]);
+  }
+
+  function onBackupFound() {
+    renderGrid();
+    renderDesigns();
+    var focused = document.activeElement && document.activeElement.getAttribute('role') === 'combobox';
+    if (!focused) renderSearches();
   }
 
   function renderSearches() {
@@ -453,7 +537,7 @@ main .wrap { padding-block: 28px 56px; }
         block.appendChild(el('p', { class: 'hint', text: 'Tap a slot on the page to place Card ' + (k + 1) + '. The search appears once it is placed.' }));
       } else if (entry.card) {
         var c = entry.card;
-        var thumb = el('div', { class: 'thumb' }, [c.image ? el('img', { src: c.image, alt: '' }) : null]);
+        var thumb = thumbFor(c, 'thumb');
         var txt = el('div', { class: 'txt' }, [el('b', { text: c.name }), el('span', { text: ' • #' + c.number + ' • ' + c.setName })]);
         var change = el('button', { type: 'button', text: 'Change', 'aria-label': 'Change Card ' + (k + 1), onclick: function () {
           entry.card = null;
@@ -474,7 +558,7 @@ main .wrap { padding-block: 28px 56px; }
     var lbl = el('label', { class: 'sr', for: 'card-search-' + k, text: 'Search for Card ' + (k + 1) });
     var input = el('input', {
       id: 'card-search-' + k, type: 'search', autocomplete: 'off', spellcheck: 'false',
-      placeholder: 'Type a card name and number, e.g. ceruledge 197/191',
+      placeholder: 'Card name, number or set, e.g. ceruledge 197/191',
       role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': listId
     });
     var list = el('ul', { class: 'listbox', id: listId, role: 'listbox', 'aria-label': 'Matching cards' });
@@ -498,21 +582,36 @@ main .wrap { padding-block: 28px 56px; }
       state.cards[k].card = c;
       close();
       renderAll(true);
+      if (!c.image) findBackupImage(c).then(function (url) { if (url && !c.image) { c.image = url; onBackupFound(); } });
     }
     function show(res) {
       items = res.results;
       list.textContent = '';
       if (res.tooShort) { close(); return; }
-      if (!items.length) { message('No cards match. Try the name plus number, like "ceruledge 197/191".'); return; }
+      if (!items.length) { message('No cards match. Try the card name with its number or set, like "ceruledge 197/191" or "ceruledge surging sparks".'); return; }
+      var lookups = 0;
       items.forEach(function (c, j) {
+        var thumb = thumbFor(c, 'thumb');
         var li = el('li', { class: 'opt', role: 'option', id: 'card-' + k + '-opt-' + j, 'aria-selected': 'false' }, [
-          el('div', { class: 'thumb' }, [c.image ? el('img', { src: c.image, alt: '', loading: 'lazy' }) : null]),
+          thumb,
           el('div', { class: 'txt' }, [el('b', { text: c.name }), el('span', { text: ' • #' + c.number + ' • ' + c.setName })])
         ]);
         li.addEventListener('mousedown', function (e) { e.preventDefault(); });
         li.addEventListener('click', function () { choose(j); });
         list.appendChild(li);
+        if (!c.image && lookups < 8) {
+          lookups++;
+          findBackupImage(c).then(function (url) {
+            if (!url || c.image) return;
+            c.image = url;
+            thumb.className = 'thumb';
+            thumb.textContent = '';
+            thumb.appendChild(el('img', { src: url, alt: '' }));
+            if (state.cards.some(function (e) { return e.card === c; })) onBackupFound();
+          });
+        }
       });
+      if (res.more) list.appendChild(el('li', { class: 'list-msg', role: 'presentation', text: 'Showing the first 30. Add a number or set name to narrow it down.' }));
       open();
       highlight(0);
     }
@@ -520,7 +619,7 @@ main .wrap { padding-block: 28px 56px; }
     input.addEventListener('input', function () {
       clearTimeout(timer);
       var q = input.value;
-      if (parseQuery(q).name.length < 2) { close(); return; }
+      if (parseQuery(q).words.join('').length < 2) { close(); return; }
       timer = setTimeout(function () {
         if (controller) controller.abort();
         controller = new AbortController();
